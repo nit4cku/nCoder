@@ -28,6 +28,8 @@
 #include "Arduino.h"
 #include "nCoder.h"
 
+#define getPinState(pin)    (!!(*portInputRegister(digitalPinToPort(pin)) & digitalPinToBitMask(pin)))
+
 static CNcoder* g_callback_object = nullptr; // Global pointer to class object
 
 CNcoder::CNcoder(const uint8_t pin_button,
@@ -41,14 +43,15 @@ CNcoder::CNcoder(const uint8_t pin_button,
     , m_rotation{Rotation::CW}
     , m_callback_function{nullptr}
 {
-	pinMode(m_pin_button, INPUT);
-	pinMode(m_pin_A, INPUT);
-	pinMode(m_pin_B, INPUT);
+    // Set pins to input mode
+    *portModeRegister(digitalPinToPort(m_pin_button)) &= ~digitalPinToBitMask(m_pin_button);
+    *portModeRegister(digitalPinToPort(m_pin_A)) &= ~digitalPinToBitMask(m_pin_A);
+    *portModeRegister(digitalPinToPort(m_pin_B)) &= ~digitalPinToBitMask(m_pin_B);
 
 #ifdef ENABLE_PULLUPS
-	digitalWrite(m_pin_button, HIGH);
-	digitalWrite(m_pin_A, HIGH);
-	digitalWrite(m_pin_B, HIGH);
+    *portOutputRegister(digitalPinToPort(m_pin_button)) |= digitalPinToBitMask(m_pin_button);
+    *portOutputRegister(digitalPinToPort(m_pin_A)) |= digitalPinToBitMask(m_pin_A);
+    *portOutputRegister(digitalPinToPort(m_pin_B)) |= digitalPinToBitMask(m_pin_B);
 #endif
 
     // Attach hardware interrupts
@@ -87,7 +90,7 @@ bool CNcoder::IsUpdateAvailable(void)
 
 CNcoder::Button CNcoder::GetButtonState(void)
 {
-    uint8_t value = digitalRead(m_pin_button);
+    uint8_t value = getPinState(m_pin_button);
     
     if (m_button_mode == CNcoder::ButtonMode::INVERTED)
     {
@@ -174,7 +177,7 @@ void CNcoder::InterruptEncoder(void)
 #endif
     
 	// Grab state of input pins.
-	uint8_t pinstate = (digitalRead(m_pin_B) << 1) | digitalRead(m_pin_A);
+	uint8_t pinstate = (getPinState(m_pin_B) << 1) | getPinState(m_pin_A);
 	// Determine new state from the pins and state table.
 	m_state = pgm_read_byte_near(&ttable[m_state & 0x0F][pinstate]);
 	// Mask emit bits, ie the generated event.
